@@ -1,19 +1,37 @@
 package internal
 
-import "unsafe"
+import (
+	"sync/atomic"
+	"unsafe"
+)
 
-type Art struct{
+type Art struct {
 	count int
-	root unsafe.Pointer
+	root  unsafe.Pointer
 }
 
-func NewArt() *Art{
+func NewTree() *Art {
 	return &Art{
 		count: 0,
-		root:  unsafe.Pointer(),
+		root:  unsafe.Pointer(makeN4()),
 	}
-
 }
+
+func (t *Art) Get(key []byte)(interface{},bool){
+	for {
+		n:=atomic.LoadPointer(&t.root)
+
+		v:=
+
+
+
+
+	}
+}
+
+
+
+
 
 
 
