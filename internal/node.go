@@ -31,47 +31,83 @@ type n struct {
 	prefix     [maxPrefixLen]byte
 }
 
-func (n *n)get(key []byte,depth int,p *n,pv uint64)(interface{},bool){
+func (cn *n)search(key []byte,depth int,pn *n,pv uint64)(interface{},bool){
 	var version uint64
 
-RECUR:
-
-	if !rLock(n,&version){
+SINK:
+	if !rLock(cn,&version){
 		return nil,false
 	}
 
-	if !rUnLock(n,pv){
+	if !rUnLock(cn,pv){
 		return nil,false
 	}
 
-	if n.checkPrefix(key,depth)!=min(int(n.prefixLen),maxPrefixLen){
-		if !rUnLock(n,version){
+	if cn.checkPrefix(key,depth)!=min(int(cn.prefixLen),maxPrefixLen){
+		if !rUnLock(cn,version){
 			return nil,false
 		}
 		return nil,true
 	}
 
-	depth+=int(n.prefixLen)
+	depth+=int(cn.prefixLen)
 	if depth==len(key){
-		l:=(* leaf)(atomic.LoadPointer(&n.prefixLeaf))
+		l:=(* leaf)(atomic.LoadPointer(&cn.prefixLeaf))
 		var v interface{}
 		if l!=nil && l.compareKey(key) {
 			v =l.value
 		}
-		if !rUnLock(n,version){
+		if !rUnLock(cn,version){
 			return nil,false
 		}
 		return v,true
 	}
 
 	if depth>len(key) {
-		return nil,rUnLock(n,version)
+		return nil,rUnLock(cn,version)
 	}
 
-	locator:=
+	locator:=cn.findChild(key[depth])
 
+	var nextNode *n
 
+	if locator!=nil{
+		nextNode=(*n)(atomic.LoadPointer(locator))
+	}
 
+	if nextNode==nil{
+		if !rUnLock(cn,version){
+			return nil,false
+		}
+		return nil,true
+	}
+
+	if !rUnLock(cn,version){
+		return nil,false
+	}
+
+	if cn.typ==typeLeaf{
+		l:=(*leaf)(unsafe.Pointer(nextNode))
+
+		if !rUnLock(cn,version){
+			return nil,false
+		}
+
+		if l.compareKey(key) {
+			if !rUnLock(cn,version){
+				return nil,false
+			}
+			//Get success
+			return l.value,true
+		}
+		return nil,true
+	}
+
+	depth++
+	pn=cn
+	pv=version
+	cn=nextNode
+	goto SINK
 }
 
 

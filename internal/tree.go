@@ -17,17 +17,17 @@ func NewTree() *Art {
 	}
 }
 
-func (t *Art) Get(key []byte)(interface{},bool){
+func (t *Art) Get(key []byte) interface{} {
 	for {
-		n:=atomic.LoadPointer(&t.root)
-
-		v:=
-
-
-
-
+		n:=(*n)(atomic.LoadPointer(&t.root))
+		v,ok:=n.search(key,0,nil,0)
+		if ok {
+			return v
+		}
 	}
 }
+
+
 
 
 

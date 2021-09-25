@@ -24,7 +24,7 @@ func (n *n) findChild(c byte) *unsafe.Pointer {
 	case typeN4:
 		{
 			node:=(* n4)(unsafe.Pointer(n))
-			//todo: Accelerated traversal using SIMD
+
 			for i:=0;i<int(node.numChild);i++{
 				if node.keys[i]==c{
 					return &node.child[i]
@@ -35,7 +35,7 @@ func (n *n) findChild(c byte) *unsafe.Pointer {
 	case typeN16:
 		{
 		    node:=(*n16)(unsafe.Pointer(n))
-
+			//todo: Accelerated traversal using SIMD
 		    for i:=0;i<int(node.numChild);i++{
 		    	if node.keys[i]==c{
 		    		return &node.child[i]
@@ -54,9 +54,11 @@ func (n *n) findChild(c byte) *unsafe.Pointer {
 		}
 	case typeN256:
 		{
-
+			node:=(*n256)(unsafe.Pointer(n))
+			if node.child[(int)(c)]!=nil{
+				return &node.child[(int)(c)]
+			}
 		}
-
 	}
 	return nil
 
