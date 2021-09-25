@@ -1,6 +1,7 @@
 package artmap
 
 type ArtMap struct {
+
 }
 
 func New() *ArtMap {

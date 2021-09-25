@@ -31,88 +31,84 @@ type n struct {
 	prefix     [maxPrefixLen]byte
 }
 
-func (cn *n)search(key []byte,depth int,pn *n,pv uint64)(interface{},bool){
+func (cn *n) search(key []byte, depth int, pn *n, pv uint64) (interface{}, bool) {
 	var version uint64
 
 SINK:
-	if !rLock(cn,&version){
-		return nil,false
+	if !rLock(cn, &version) {
+		return nil, false
 	}
 
-	if !rUnLock(cn,pv){
-		return nil,false
+	if !rUnLock(cn, pv) {
+		return nil, false
 	}
 
-	if cn.checkPrefix(key,depth)!=min(int(cn.prefixLen),maxPrefixLen){
-		if !rUnLock(cn,version){
-			return nil,false
+	if cn.checkPrefix(key, depth) != min(int(cn.prefixLen), maxPrefixLen) {
+		if !rUnLock(cn, version) {
+			return nil, false
 		}
-		return nil,true
+		return nil, true
 	}
 
-	depth+=int(cn.prefixLen)
-	if depth==len(key){
-		l:=(* leaf)(atomic.LoadPointer(&cn.prefixLeaf))
+	depth += int(cn.prefixLen)
+	if depth == len(key) {
+		l := (* leaf)(atomic.LoadPointer(&cn.prefixLeaf))
 		var v interface{}
-		if l!=nil && l.compareKey(key) {
-			v =l.value
+		if l != nil && l.compareKey(key) {
+			v = l.value
 		}
-		if !rUnLock(cn,version){
-			return nil,false
+		if !rUnLock(cn, version) {
+			return nil, false
 		}
-		return v,true
+		return v, true
 	}
 
-	if depth>len(key) {
-		return nil,rUnLock(cn,version)
+	if depth > len(key) {
+		return nil, rUnLock(cn, version)
 	}
 
-	locator:=cn.findChild(key[depth])
+	locator := cn.findChild(key[depth])
 
 	var nextNode *n
 
-	if locator!=nil{
-		nextNode=(*n)(atomic.LoadPointer(locator))
+	if locator != nil {
+		nextNode = (*n)(atomic.LoadPointer(locator))
 	}
 
-	if nextNode==nil{
-		if !rUnLock(cn,version){
-			return nil,false
+	if nextNode == nil {
+		if !rUnLock(cn, version) {
+			return nil, false
 		}
-		return nil,true
+		return nil, true
 	}
 
-	if !rUnLock(cn,version){
-		return nil,false
+	if !rUnLock(cn, version) {
+		return nil, false
 	}
 
-	if cn.typ==typeLeaf{
-		l:=(*leaf)(unsafe.Pointer(nextNode))
+	if cn.typ == typeLeaf {
+		l := (*leaf)(unsafe.Pointer(nextNode))
 
-		if !rUnLock(cn,version){
-			return nil,false
+		if !rUnLock(cn, version) {
+			return nil, false
 		}
 
 		if l.compareKey(key) {
-			if !rUnLock(cn,version){
-				return nil,false
+			if !rUnLock(cn, version) {
+				return nil, false
 			}
 			//Get success
-			return l.value,true
+			return l.value, true
 		}
-		return nil,true
+		return nil, true
 	}
 
 	depth++
-	pn=cn
-	pv=version
-	cn=nextNode
+	pn = cn
+	pv = version
+	cn = nextNode
 	goto SINK
 }
-
-
-
-
 
 type n4 struct {
 	n
@@ -120,9 +116,9 @@ type n4 struct {
 	child [4]unsafe.Pointer
 }
 
-func makeN4()*n4{
-	n:=new(n4)
-	n.typ=typeN4
+func makeN4() *n4 {
+	n := new(n4)
+	n.typ = typeN4
 	return n
 }
 
@@ -132,9 +128,9 @@ type n16 struct {
 	child [16]unsafe.Pointer
 }
 
-func makeN16()*n16{
-	n:=new(n16)
-	n.typ=typeN16
+func makeN16() *n16 {
+	n := new(n16)
+	n.typ = typeN16
 	return n
 }
 
@@ -144,9 +140,9 @@ type n48 struct {
 	child [48]unsafe.Pointer
 }
 
-func makeN48()*n48{
-	n:=new(n48)
-	n.typ=typeN48
+func makeN48() *n48 {
+	n := new(n48)
+	n.typ = typeN48
 	return n
 }
 
@@ -155,12 +151,11 @@ type n256 struct {
 	child [256]unsafe.Pointer
 }
 
-func makeN256()*n256{
-	n:=new(n256)
-	n.typ=typeN256
+func makeN256() *n256 {
+	n := new(n256)
+	n.typ = typeN256
 	return n
 }
-
 
 type leaf struct {
 	typ   uint8
@@ -170,8 +165,8 @@ type leaf struct {
 
 func makeLeaf(k []byte, v interface{}) *leaf {
 	l := &leaf{
-		typ:typeLeaf,
-		key: k,
+		typ:   typeLeaf,
+		key:   k,
 		value: v,
 	}
 	return l
