@@ -32,6 +32,13 @@ func (t *Art) Get(key []byte) (interface{}, bool) {
 
 func (t *Art) Set(key []byte, value interface{}) {
 
+
+
+
+
+
+
+
 }
 
 func (t *Art) Remove(key []byte) {

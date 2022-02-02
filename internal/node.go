@@ -34,7 +34,7 @@ type n struct {
 func (cn *n) search(key []byte, depth int, pn *n, pv uint64) (interface{}, bool) {
 	var version uint64
 
-SINK:
+CUR:
 	if !rLock(cn, &version) {
 		return nil, false
 	}
@@ -107,13 +107,64 @@ SINK:
 	pn = cn
 	pv = version
 	cn = nextNode
-	goto SINK
+	goto CUR
+}
+
+func (cn *n) insert(key []byte, value interface{}, depth int, pn *n, pv uint64, locator *unsafe.Pointer) bool {
+	var version uint64
+CUR:
+	if !rLock(cn, &version) {
+		return false
+	}
+	prefixLen, comKey, ok := cn.prefixMismatch(key, depth, pn, version, pv)
+	if !ok {
+		return false
+	}
+
+	if cn.prefixLen != uint32(prefixLen) {
+		if !upgrade(pn, &pv) {
+			return false
+		}
+		if !upgradeWithUnlock(cn, &version, pn) {
+			return false
+		}
+		cn.commonInsert(key, comKey, value, depth, prefixLen, locator)
+		unlock(cn)
+		unlock(pn)
+		return true
+	}
+
+	depth += int(cn.prefixLen)
+
+	if depth == len(key) {
+		upgrade(cn, &version)
+		rUnLock()
+
+
+
+	}
+
 }
 
 type n4 struct {
 	n
 	keys  [4]byte
 	child [4]unsafe.Pointer
+}
+
+func (n *n4) addChild(key byte, child unsafe.Pointer) {
+	i := 0
+	for ; i < int(n.numChild); i++ {
+		if key < n.keys[i] {
+			break
+		}
+	}
+	//back to next byte
+	copy(n.keys[i+1:], n.keys[i:])
+	copy(n.child[i+1:], n.child[i:])
+	n.keys[i] = key
+	atomic.StorePointer(&n.child[i], child)
+	n.numChild++
 }
 
 func makeN4() *n4 {

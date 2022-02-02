@@ -54,6 +54,19 @@ func upgrade(n *n, version *uint64) bool {
 	return atomic.CompareAndSwapUint64(&n.version, *version, (*version)+l_flag)
 }
 
+func upgradeWithUnlock(n *n, version *uint64, uln *n) bool {
+	if n == nil {
+		return true
+	}
+	if !atomic.CompareAndSwapUint64(&n.version, *version, (*version)+l_flag) {
+		unlock(uln)
+		return false
+	}
+	return true
+}
+
+func
+
 func waitUnLock(n *n) uint64 {
 	v := atomic.LoadUint64(&n.version)
 	c := spin_count
