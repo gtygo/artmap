@@ -1,3 +1,1 @@
 package internal
-
-func Testlock()

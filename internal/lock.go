@@ -5,14 +5,17 @@ import (
 	"sync/atomic"
 )
 
-const d_flag = uint64(1)
-const l_flag = uint64(1) << 1
-const l_and_d_flag = uint64(1)<<2 - 1
-const spin_count = int8(64)
+const (
+	OBSOLETE_FLAG        = uint64(1)
+	LOCKED_FLAG          = uint64(2)
+	OBSOLETE_LOCKED_FLAG = uint64(3)
 
-func rLock(n *n, version *uint64) bool {
-	v := waitUnLock(n)
-	if (v & d_flag) == d_flag {
+	spin_count = int8(64)
+)
+
+func readLockOrRestart(n *n, version *uint64) bool {
+	v := awaitNodeUnLocked(n)
+	if isObsolete(v) {
 		*version = 0
 		return false
 	}
@@ -20,57 +23,70 @@ func rLock(n *n, version *uint64) bool {
 	return true
 }
 
-func rUnLock(n *n, version uint64) bool {
+func readUnLockOrRestart(n *n, version uint64) bool {
 	if n == nil {
 		return true
 	}
 	return version == atomic.LoadUint64(&n.version)
 }
 
-func lock(n *n) bool {
+func readUnLockWithNodeOrRestart(n *n, version uint64, uln *n) bool {
+	if n == nil {
+		return true
+	}
+	writeUnLock(uln)
+	return version == atomic.LoadUint64(&n.version)
+}
+
+func upgradeToWriteLockOrRestart(n *n, version uint64) bool {
+	if n == nil {
+		return true
+	}
+	return atomic.CompareAndSwapUint64(&n.version, version, (version)+LOCKED_FLAG)
+}
+
+func upgradeToWriteLockWithNodeOrRestart(n *n, version uint64, uln *n) bool {
+	if n == nil {
+		return true
+	}
+	if !atomic.CompareAndSwapUint64(&n.version, version, (version)+LOCKED_FLAG) {
+		writeUnLock(uln)
+		return false
+	}
+	return true
+}
+
+func writeLockOrRestart(n *n) bool {
 	v := uint64(0)
 	for {
-		if !rLock(n, &v) {
+		if !readLockOrRestart(n, &v) {
 			return false
 		}
-		if upgrade(n, &v) {
+		if upgradeToWriteLockOrRestart(n, v) {
 			break
 		}
 	}
 	return false
 }
 
-func unlock(n *n) {
+func writeUnLock(n *n) {
 	if n == nil {
 		return
 	}
-	atomic.AddUint64(&n.version, l_flag)
+	atomic.AddUint64(&n.version, LOCKED_FLAG)
 }
 
-func upgrade(n *n, version *uint64) bool {
+func writeUnLockObsolete(n *n) {
 	if n == nil {
-		return true
+		return
 	}
-	return atomic.CompareAndSwapUint64(&n.version, *version, (*version)+l_flag)
+	atomic.AddUint64(&n.version, OBSOLETE_LOCKED_FLAG)
 }
 
-func upgradeWithUnlock(n *n, version *uint64, uln *n) bool {
-	if n == nil {
-		return true
-	}
-	if !atomic.CompareAndSwapUint64(&n.version, *version, (*version)+l_flag) {
-		unlock(uln)
-		return false
-	}
-	return true
-}
-
-func
-
-func waitUnLock(n *n) uint64 {
+func awaitNodeUnLocked(n *n) uint64 {
 	v := atomic.LoadUint64(&n.version)
 	c := spin_count
-	for (v & l_flag) == l_flag {
+	for (v & LOCKED_FLAG) == LOCKED_FLAG { //spin lock
 		if c <= 0 {
 			runtime.Gosched()
 			c = spin_count
@@ -81,9 +97,10 @@ func waitUnLock(n *n) uint64 {
 	return v
 }
 
-func dirtyUnLock(n *n) {
-	if n == nil {
-		return
-	}
-	atomic.AddUint64(&n.version, l_and_d_flag)
+func setLockedBit(version uint64) uint64 {
+	return version + LOCKED_FLAG
+}
+
+func isObsolete(version uint64) bool {
+	return (version & OBSOLETE_FLAG) == OBSOLETE_FLAG
 }

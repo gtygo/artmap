@@ -1,17 +1,8 @@
 package internal
 
 import (
-	"bytes"
 	"sync/atomic"
 	"unsafe"
-)
-
-const (
-	minN16  = 4
-	minN48  = 13
-	minN256 = 38
-
-	maxPrefixLen = 8
 )
 
 const (
@@ -20,6 +11,8 @@ const (
 	typeN48
 	typeN256
 	typeLeaf
+
+	maxPrefixLen = 8
 )
 
 type n struct {
@@ -31,20 +24,95 @@ type n struct {
 	prefix     [maxPrefixLen]byte
 }
 
+func (cn *n) updatePrefixLeaf(key []byte, value interface{}) {
+	if cn.prefixLeaf == nil {
+		atomic.StorePointer(&cn.prefixLeaf, unsafe.Pointer(makeLeaf(key, value)))
+	} else {
+		l := (*leaf)(cn.prefixLeaf)
+		l.value = value
+	}
+	//check leaf type
+}
+
+func (cn *n) isFull() bool {
+	switch cn.typ {
+	case typeN4:
+		{
+			return cn.numChild == node4ChildSize
+		}
+	case typeN16:
+		{
+			return cn.numChild == node16ChildSize
+
+		}
+	case typeN48:
+		{
+			return cn.numChild == node48ChildSize
+		}
+	case typeN256:
+		{
+			return cn.numChild == node256ChildSize
+		}
+	}
+	return true
+}
+
+func (cn *n) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer) {
+	switch cn.typ {
+	case typeN4:
+		{
+			((*n4)(unsafe.Pointer(cn))).insertAndGrow(ref, c, child)
+		}
+	case typeN16:
+		{
+			((*n16)(unsafe.Pointer(cn))).insertAndGrow(ref, c, child)
+		}
+	case typeN48:
+		{
+			((*n48)(unsafe.Pointer(cn))).insertAndGrow(ref, c, child)
+		}
+	case typeN256:
+		{
+			((*n256)(unsafe.Pointer(cn))).insertAndGrow(c, child)
+		}
+	}
+}
+
+func (cn *n) insert(c byte, child unsafe.Pointer) {
+	switch cn.typ {
+	case typeN4:
+		{
+			((*n4)(unsafe.Pointer(cn))).insertChild(c, child)
+		}
+	case typeN16:
+		{
+			((*n16)(unsafe.Pointer(cn))).insertChild(c, child)
+		}
+	case typeN48:
+		{
+			((*n48)(unsafe.Pointer(cn))).insertChild(c, child)
+		}
+	case typeN256:
+		{
+			((*n256)(unsafe.Pointer(cn))).insertChild(c, child)
+		}
+	}
+}
+
 func (cn *n) search(key []byte, depth int, pn *n, pv uint64) (interface{}, bool) {
 	var version uint64
 
 CUR:
-	if !rLock(cn, &version) {
+	if !readLockOrRestart(cn, &version) {
 		return nil, false
 	}
 
-	if !rUnLock(cn, pv) {
+	if !readUnLockOrRestart(cn, pv) {
 		return nil, false
 	}
 
 	if cn.checkPrefix(key, depth) != min(int(cn.prefixLen), maxPrefixLen) {
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 		return nil, true
@@ -57,14 +125,14 @@ CUR:
 		if l != nil && l.compareKey(key) {
 			v = l.value
 		}
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 		return v, true
 	}
 
 	if depth > len(key) {
-		return nil, rUnLock(cn, version)
+		return nil, readUnLockOrRestart(cn, version)
 	}
 
 	locator := cn.findChild(key[depth])
@@ -76,25 +144,25 @@ CUR:
 	}
 
 	if nextNode == nil {
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 		return nil, true
 	}
 
-	if !rUnLock(cn, version) {
+	if !readUnLockOrRestart(cn, version) {
 		return nil, false
 	}
 
 	if cn.typ == typeLeaf {
 		l := (*leaf)(unsafe.Pointer(nextNode))
 
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 
 		if l.compareKey(key) {
-			if !rUnLock(cn, version) {
+			if !readUnLockOrRestart(cn, version) {
 				return nil, false
 			}
 			//Get success
@@ -110,119 +178,146 @@ CUR:
 	goto CUR
 }
 
-func (cn *n) insert(key []byte, value interface{}, depth int, pn *n, pv uint64, locator *unsafe.Pointer) bool {
-	var version uint64
+func (cn *n) findChild(c byte) *unsafe.Pointer {
+
+	switch cn.typ {
+	case typeN4:
+		{
+			node := (* n4)(unsafe.Pointer(cn))
+			for i := 0; i < int(node.numChild); i++ {
+				if node.keys[i] == c {
+					return &node.child[i]
+				}
+			}
+			break
+		}
+	case typeN16:
+		{
+			node := (*n16)(unsafe.Pointer(cn))
+			i, j := 0, len(node.keys)
+			for i < j {
+				h := int(uint(i+j) >> 1)
+				if node.keys[h] > c {
+					j = h
+				} else if node.keys[h] < c {
+					i = h + 1
+				} else if node.keys[h] == c {
+					return &node.child[i]
+				}
+			}
+			break
+		}
+	case typeN48:
+		{
+			node := (*n48)(unsafe.Pointer(cn))
+			i := node.keys[c]
+			if i > 0 {
+				return &node.child[i]
+			}
+
+		}
+	case typeN256:
+		{
+			node := (*n256)(unsafe.Pointer(cn))
+			if node.child[(int)(c)] != nil {
+				return &node.child[(int)(c)]
+			}
+			break
+		}
+	}
+	return nil
+
+}
+
+func (cn *n) insertOpt(key []byte, value interface{}, depth int, pn *n, pv uint64, locator *unsafe.Pointer) bool {
+	var cv uint64
 CUR:
-	if !rLock(cn, &version) {
+	if !readLockOrRestart(cn, &cv) {
 		return false
 	}
-	prefixLen, comKey, ok := cn.prefixMismatch(key, depth, pn, version, pv)
+	prefixLen, comKey, ok := cn.prefixMismatch(key, depth, pn, cv, pv)
 	if !ok {
 		return false
 	}
 
 	if cn.prefixLen != uint32(prefixLen) {
-		if !upgrade(pn, &pv) {
+		if !upgradeToWriteLockOrRestart(pn, pv) {
 			return false
 		}
-		if !upgradeWithUnlock(cn, &version, pn) {
+		if !upgradeToWriteLockWithNodeOrRestart(cn, cv, pn) {
 			return false
 		}
 		cn.commonInsert(key, comKey, value, depth, prefixLen, locator)
-		unlock(cn)
-		unlock(pn)
+		writeUnLock(cn)
+		writeUnLock(pn)
 		return true
 	}
 
 	depth += int(cn.prefixLen)
 
 	if depth == len(key) {
-		upgrade(cn, &version)
-		rUnLock()
-
-
+		//lock current
+		if !upgradeToWriteLockOrRestart(cn, cv) {
+			return false
+		}
+		//release father
+		if !readUnLockWithNodeOrRestart(pn, pv, cn) {
+			return false
+		}
+		cn.updatePrefixLeaf(key, value)
+		writeUnLock(cn)
+		return true
 
 	}
+	loc := cn.findChild(key[depth])
+	var nextNode unsafe.Pointer = nil
 
-}
+	if loc != nil && (*loc) != nil {
+		nextNode = *loc
+	}
+	if nextNode == nil {
+		if cn.isFull() {
+			if !upgradeToWriteLockOrRestart(pn, pv) {
+				return false
+			}
+			if !upgradeToWriteLockWithNodeOrRestart(cn, cv, pn) {
+				return false
+			}
+			//Capacity Expansion
+			cn.insertAndGrow(locator, key[depth], unsafe.Pointer(makeLeaf(key, value)))
+			writeUnLockObsolete(cn)
+			writeUnLock(pn)
+		} else {
+			if !upgradeToWriteLockOrRestart(cn, cv) {
+				return false
+			}
+			if !readUnLockWithNodeOrRestart(pn, pv, cn) {
+				return false
+			}
+			cn.insert(key[depth], unsafe.Pointer(makeLeaf(key, value)))
+			writeUnLock(cn)
 
-type n4 struct {
-	n
-	keys  [4]byte
-	child [4]unsafe.Pointer
-}
-
-func (n *n4) addChild(key byte, child unsafe.Pointer) {
-	i := 0
-	for ; i < int(n.numChild); i++ {
-		if key < n.keys[i] {
-			break
+		}
+		return true
+	}
+	if pn != nil {
+		if !readUnLockOrRestart(pn, pv) {
+			return false
 		}
 	}
-	//back to next byte
-	copy(n.keys[i+1:], n.keys[i:])
-	copy(n.child[i+1:], n.child[i:])
-	n.keys[i] = key
-	atomic.StorePointer(&n.child[i], child)
-	n.numChild++
-}
 
-func makeN4() *n4 {
-	n := new(n4)
-	n.typ = typeN4
-	return n
-}
-
-type n16 struct {
-	n
-	keys  [16]byte
-	child [16]unsafe.Pointer
-}
-
-func makeN16() *n16 {
-	n := new(n16)
-	n.typ = typeN16
-	return n
-}
-
-type n48 struct {
-	n
-	keys  [256]byte
-	child [48]unsafe.Pointer
-}
-
-func makeN48() *n48 {
-	n := new(n48)
-	n.typ = typeN48
-	return n
-}
-
-type n256 struct {
-	n
-	child [256]unsafe.Pointer
-}
-
-func makeN256() *n256 {
-	n := new(n256)
-	n.typ = typeN256
-	return n
-}
-
-type leaf struct {
-	typ   uint8
-	key   []byte
-	value interface{}
-}
-
-func makeLeaf(k []byte, v interface{}) *leaf {
-	l := &leaf{
-		typ:   typeLeaf,
-		key:   k,
-		value: v,
+	if ((*n)(nextNode)).typ == typeLeaf {
+		if !upgradeToWriteLockOrRestart(cn, cv) {
+			return false
+		}
+		(*leaf)(nextNode).insertExpandLeaf(key, value, depth+1, loc)
+		writeUnLock(cn)
+		return true
 	}
-	return l
-}
-
-func (l *leaf) compareKey(k []byte) bool {
-	return len(k) == len(l.key) && bytes.Compare(k, l.key) == 0
+	depth += 1
+	pn = cn
+	pv = cv
+	locator = loc
+	cn = (*n)(nextNode)
+	goto CUR
 }

@@ -21,50 +21,7 @@ func (cn *n) checkPrefix(key []byte, depth int) int {
 	return idx
 }
 
-func (cn *n) findChild(c byte) *unsafe.Pointer {
 
-	switch cn.typ {
-	case typeN4:
-		{
-			node := (* n4)(unsafe.Pointer(cn))
-			for i := 0; i < int(node.numChild); i++ {
-				if node.keys[i] == c {
-					return &node.child[i]
-				}
-			}
-			break
-		}
-	case typeN16:
-		{
-			node := (*n16)(unsafe.Pointer(cn))
-			//todo: Accelerated traversal using SIMD
-			for i := 0; i < int(node.numChild); i++ {
-				if node.keys[i] == c {
-					return &node.child[i]
-				}
-			}
-			break
-		}
-	case typeN48:
-		{
-			node := (*n48)(unsafe.Pointer(cn))
-			i := node.keys[c]
-			if i > 0 {
-				return &node.child[i]
-			}
-			break
-		}
-	case typeN256:
-		{
-			node := (*n256)(unsafe.Pointer(cn))
-			if node.child[(int)(c)] != nil {
-				return &node.child[(int)(c)]
-			}
-		}
-	}
-	return nil
-
-}
 
 func (cn *n) prefixMismatch(key []byte, depth int, pn *n, v uint64, pv uint64) (int, []byte, bool) {
 	if cn.prefixLen < maxPrefixLen {
@@ -80,7 +37,7 @@ func (cn *n) prefixMismatch(key []byte, depth int, pn *n, v uint64, pv uint64) (
 			break
 		}
 
-		if !rUnLock(cn, v) || !rUnLock(pn, pv) {
+		if !readUnLockOrRestart(cn, v) || !readUnLockOrRestart(pn, pv) {
 			return 0, nil, false
 		}
 	}
@@ -107,19 +64,19 @@ func (cn *n) commonInsert(key, comKey []byte, value interface{}, depth int, pref
 	nn4.prefixLen = uint32(prefixLen)
 	copy(cn.prefix[:min(maxPrefixLen, prefixLen)], cn.prefix[:])
 
-	if cn.prefixLen<=maxPrefixLen{
-		nn4.addChild(cn.prefix[prefixLen],unsafe.Pointer(cn))
-		cn.prefixLen-=uint32(prefixLen)+1
-		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))],cn.prefix[prefixLen+1:])
+	if cn.prefixLen <= maxPrefixLen {
+		nn4.addChild(cn.prefix[prefixLen], unsafe.Pointer(cn))
+		cn.prefixLen -= uint32(prefixLen) + 1
+		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], cn.prefix[prefixLen+1:])
 
-	}else{
-		nn4.addChild(comKey[depth+prefixLen],unsafe.Pointer(cn))
-		cn.prefixLen-=uint32(prefixLen)+1
-		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))],comKey[depth+prefixLen+1:])
+	} else {
+		nn4.addChild(comKey[depth+prefixLen], unsafe.Pointer(cn))
+		cn.prefixLen -= uint32(prefixLen) + 1
+		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], comKey[depth+prefixLen+1:])
 
 	}
 
-	atomic.StorePointer(nodeLoc,unsafe.Pointer(nn4))
+	atomic.StorePointer(nodeLoc, unsafe.Pointer(nn4))
 }
 
 func (cn *n) findCompleteKey(version uint64) ([]byte, bool) {
@@ -129,27 +86,27 @@ func (cn *n) findCompleteKey(version uint64) ([]byte, bool) {
 	if prefixL != nil {
 		l := (*leaf)(prefixL)
 
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 		return l.key, true
 	}
 	//2. check node leaf
 	child := cn.findFirstChild()
-	if !rUnLock(cn, version) {
+	if !readUnLockOrRestart(cn, version) {
 		return nil, false
 	}
 
 	if child.typ == typeLeaf {
 		l := (*leaf)(unsafe.Pointer(child))
 		key := l.key
-		if !rUnLock(cn, version) {
+		if !readUnLockOrRestart(cn, version) {
 			return nil, false
 		}
 		return key, true
 	}
 	childVersion := uint64(0)
-	if !rLock(child, &childVersion) {
+	if !readLockOrRestart(child, &childVersion) {
 		return nil, false
 	}
 	return child.findCompleteKey(childVersion)
