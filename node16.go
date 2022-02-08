@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"sync/atomic"
@@ -30,9 +30,8 @@ func (node *n16) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer
 		newNode.keys[node.keys[i]] = i + 1
 	}
 	copyHeader((*n)(unsafe.Pointer(newNode)), (*n)(unsafe.Pointer(node)))
-	//todo: add child for n48
-	//newNode.insertN4(c, child)
 
+	newNode.insertChild(c, child)
 
 	atomic.StorePointer(ref, unsafe.Pointer(newNode))
 

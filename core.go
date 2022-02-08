@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"sync/atomic"
@@ -21,9 +21,7 @@ func (cn *n) checkPrefix(key []byte, depth int) int {
 	return idx
 }
 
-
-
-func (cn *n) prefixMismatch(key []byte, depth int, pn *n, v uint64, pv uint64) (int, []byte, bool) {
+func (cn *n) prefixMismatch(key []byte, depth int, pn *n, cv uint64, pv uint64) (int, []byte, bool) {
 	if cn.prefixLen < maxPrefixLen {
 		return cn.checkPrefix(key, depth), nil, true
 	}
@@ -32,12 +30,12 @@ func (cn *n) prefixMismatch(key []byte, depth int, pn *n, v uint64, pv uint64) (
 		ok          bool
 	)
 	for {
-		completeKey, ok = cn.findCompleteKey(v)
+		completeKey, ok = cn.findCompleteKey(cv)
 		if ok {
 			break
 		}
 
-		if !readUnLockOrRestart(cn, v) || !readUnLockOrRestart(pn, pv) {
+		if !readUnLockOrRestart(cn, cv) || !readUnLockOrRestart(pn, pv) {
 			return 0, nil, false
 		}
 	}
@@ -53,30 +51,30 @@ func (cn *n) prefixMismatch(key []byte, depth int, pn *n, v uint64, pv uint64) (
 	return i - depth, completeKey, true
 }
 
-func (cn *n) commonInsert(key, comKey []byte, value interface{}, depth int, prefixLen int, nodeLoc *unsafe.Pointer) {
-	nn4 := makeN4()
+func (cn *n) insertSplitPrefix(key, comKey []byte, value interface{}, depth int, prefixLen int, nodeLoc *unsafe.Pointer) {
+	n4 := MakeN4()
 	tmpDepth := depth + prefixLen
 	if len(key) == tmpDepth {
-		nn4.prefixLeaf = unsafe.Pointer(makeLeaf(key, value))
+		n4.prefixLeaf = unsafe.Pointer(makeLeaf(key, value))
 	} else {
-		nn4.addChild(key[depth], unsafe.Pointer(makeLeaf(key, value)))
+		n4.insertChild(key[depth], unsafe.Pointer(makeLeaf(key, value)))
 	}
-	nn4.prefixLen = uint32(prefixLen)
+	n4.prefixLen = uint32(prefixLen)
 	copy(cn.prefix[:min(maxPrefixLen, prefixLen)], cn.prefix[:])
 
 	if cn.prefixLen <= maxPrefixLen {
-		nn4.addChild(cn.prefix[prefixLen], unsafe.Pointer(cn))
+		n4.insertChild(cn.prefix[prefixLen], unsafe.Pointer(cn))
 		cn.prefixLen -= uint32(prefixLen) + 1
 		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], cn.prefix[prefixLen+1:])
 
 	} else {
-		nn4.addChild(comKey[depth+prefixLen], unsafe.Pointer(cn))
+		n4.insertChild(comKey[depth+prefixLen], unsafe.Pointer(cn))
 		cn.prefixLen -= uint32(prefixLen) + 1
 		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], comKey[depth+prefixLen+1:])
 
 	}
 
-	atomic.StorePointer(nodeLoc, unsafe.Pointer(nn4))
+	atomic.StorePointer(nodeLoc, unsafe.Pointer(n4))
 }
 
 func (cn *n) findCompleteKey(version uint64) ([]byte, bool) {
@@ -106,7 +104,8 @@ func (cn *n) findCompleteKey(version uint64) ([]byte, bool) {
 		return key, true
 	}
 	childVersion := uint64(0)
-	if !readLockOrRestart(child, &childVersion) {
+	ok := false
+	if childVersion, ok = readLockOrRestart(child); !ok {
 		return nil, false
 	}
 	return child.findCompleteKey(childVersion)
@@ -143,12 +142,9 @@ func (cn *n) findFirstChild() *n {
 				if child := atomic.LoadPointer(&xn.child[i]); child != nil {
 					return (*n)(child)
 				}
-
 			}
 			return nil
-
 		}
-
 	}
 	return nil
 

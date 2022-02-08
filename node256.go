@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"sync/atomic"

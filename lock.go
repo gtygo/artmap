@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"runtime"
@@ -13,14 +13,12 @@ const (
 	spin_count = int8(64)
 )
 
-func readLockOrRestart(n *n, version *uint64) bool {
+func readLockOrRestart(n *n) (uint64, bool) {
 	v := awaitNodeUnLocked(n)
 	if isObsolete(v) {
-		*version = 0
-		return false
+		return 0, false
 	}
-	*version = v
-	return true
+	return v, true
 }
 
 func readUnLockOrRestart(n *n, version uint64) bool {
@@ -57,9 +55,13 @@ func upgradeToWriteLockWithNodeOrRestart(n *n, version uint64, uln *n) bool {
 }
 
 func writeLockOrRestart(n *n) bool {
-	v := uint64(0)
+	var (
+		v  uint64
+		ok bool
+	)
 	for {
-		if !readLockOrRestart(n, &v) {
+		v, ok = readLockOrRestart(n)
+		if !ok {
 			return false
 		}
 		if upgradeToWriteLockOrRestart(n, v) {
@@ -95,10 +97,6 @@ func awaitNodeUnLocked(n *n) uint64 {
 		v = atomic.LoadUint64(&n.version)
 	}
 	return v
-}
-
-func setLockedBit(version uint64) uint64 {
-	return version + LOCKED_FLAG
 }
 
 func isObsolete(version uint64) bool {

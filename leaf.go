@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"bytes"
@@ -13,9 +13,11 @@ type leaf struct {
 
 func makeLeaf(k []byte, v interface{}) *leaf {
 	l := &leaf{
+		typ:   typeLeaf,
 		key:   k,
 		value: v,
 	}
+
 	return l
 }
 

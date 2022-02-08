@@ -1,4 +1,4 @@
-package internal
+package artmap
 
 import (
 	"sync/atomic"
@@ -16,7 +16,7 @@ type n4 struct {
 	child [node4ChildSize]unsafe.Pointer
 }
 
-func makeN4() *n4 {
+func MakeN4() *n4 {
 	n := new(n4)
 	n.typ = typeN4
 	return n
@@ -46,6 +46,8 @@ func (node *n4) insertChild(c byte, child unsafe.Pointer) {
 	atomic.StorePointer(&node.child[idx], child)
 	node.numChild++
 }
+
+
 
 //w opt
 func copyHeader(dst *n, src *n) {
