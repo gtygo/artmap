@@ -47,8 +47,6 @@ func (node *n4) insertChild(c byte, child unsafe.Pointer) {
 	node.numChild++
 }
 
-
-
 //w opt
 func copyHeader(dst *n, src *n) {
 	dst.numChild = src.numChild

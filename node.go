@@ -49,7 +49,7 @@ CUR:
 
 	depth += int(cn.prefixLen)
 	if depth == len(key) {
-		l := (* leaf)(atomic.LoadPointer(&cn.prefixLeaf))
+		l := (*leaf)(atomic.LoadPointer(&cn.prefixLeaf))
 		var v interface{}
 		if l != nil && l.compareKey(key) {
 			v = l.value
@@ -283,7 +283,7 @@ func (cn *n) findChild(c byte) *unsafe.Pointer {
 	switch cn.typ {
 	case typeN4:
 		{
-			node := (* n4)(unsafe.Pointer(cn))
+			node := (*n4)(unsafe.Pointer(cn))
 			for i := 0; i < int(node.numChild); i++ {
 				if node.keys[i] == c {
 					return &node.child[i]
