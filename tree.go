@@ -13,7 +13,7 @@ type tree struct {
 func New() *tree {
 	return &tree{
 		count: 0,
-		root:  unsafe.Pointer(MakeN4()),
+		root:  unsafe.Pointer(makeN4()),
 	}
 }
 
@@ -53,7 +53,9 @@ func (t *tree) Count() uint64 {
 }
 
 func (t *tree) Clear() {
-
+	atomic.StorePointer(&t.root, unsafe.Pointer(makeN4()))
+	atomic.StoreUint64(&t.count, 0)
+	//don't runtime.GC
 }
 
 func (t *tree) Has() {

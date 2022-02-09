@@ -16,7 +16,7 @@ type n4 struct {
 	child [node4ChildSize]unsafe.Pointer
 }
 
-func MakeN4() *n4 {
+func makeN4() *n4 {
 	n := new(n4)
 	n.typ = typeN4
 	return n
@@ -35,7 +35,7 @@ func (node *n4) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer)
 //w opt
 func (node *n4) insertChild(c byte, child unsafe.Pointer) {
 	var idx uint8
-	for idx := uint8(0); idx < node.numChild; idx++ {
+	for idx = uint8(0); idx < node.numChild; idx++ {
 		if c < node.keys[idx] {
 			break
 		}

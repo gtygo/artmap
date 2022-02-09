@@ -294,7 +294,7 @@ func (cn *n) findChild(c byte) *unsafe.Pointer {
 	case typeN16:
 		{
 			node := (*n16)(unsafe.Pointer(cn))
-			i, j := 0, len(node.keys)
+			i, j := 0, int(node.numChild)
 			for i < j {
 				h := int(uint(i+j) >> 1)
 				if node.keys[h] > c {
@@ -302,7 +302,7 @@ func (cn *n) findChild(c byte) *unsafe.Pointer {
 				} else if node.keys[h] < c {
 					i = h + 1
 				} else if node.keys[h] == c {
-					return &node.child[i]
+					return &node.child[h]
 				}
 			}
 			break
@@ -312,7 +312,7 @@ func (cn *n) findChild(c byte) *unsafe.Pointer {
 			node := (*n48)(unsafe.Pointer(cn))
 			i := node.keys[c]
 			if i > 0 {
-				return &node.child[i]
+				return &node.child[i-1]
 			}
 
 		}

@@ -40,7 +40,7 @@ func (node *n16) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer
 //w opt
 func (node *n16) insertChild(c byte, child unsafe.Pointer) {
 	var idx uint8
-	for idx := uint8(0); idx < node.numChild; idx++ {
+	for idx = uint8(0); idx < node.numChild; idx++ {
 		if c < node.keys[idx] {
 			break
 		}

@@ -52,7 +52,7 @@ func (cn *n) prefixMismatch(key []byte, depth int, pn *n, cv uint64, pv uint64) 
 }
 
 func (cn *n) insertSplitPrefix(key, comKey []byte, value interface{}, depth int, prefixLen int, nodeLoc *unsafe.Pointer) {
-	n4 := MakeN4()
+	n4 := makeN4()
 	tmpDepth := depth + prefixLen
 	if len(key) == tmpDepth {
 		n4.prefixLeaf = unsafe.Pointer(makeLeaf(key, value))
