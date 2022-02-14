@@ -5,6 +5,14 @@ import (
 	"unsafe"
 )
 
+func copyHeader(dst *n, src *n) {
+	dst.numChild = src.numChild
+	dst.prefixLen = src.prefixLen
+	copy(dst.prefix[:], src.prefix[:])
+	dst.prefixLeaf = src.prefixLeaf
+}
+
+
 func (cn *n) checkPrefix(key []byte, depth int) int {
 	if cn.prefixLen == 0 {
 		return 0

@@ -25,15 +25,9 @@ func makeN48() *n48 {
 //w opt
 func (node *n48) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer) {
 	newNode := makeN256()
-
-	for i := uint8(0); i < node.numChild; i++ {
-		if node.keys[i] != 0 {
-			newNode.child[i] = node.child[node.keys[i]-1]
-		}
-	}
+	node.copyData(newNode)
 	copyHeader((*n)(unsafe.Pointer(newNode)), (*n)(unsafe.Pointer(node)))
-	//todo: add child for n48
-	//newNode.insertN4(c, child)
+	newNode.insertChild(c, child)
 	atomic.StorePointer(ref, unsafe.Pointer(newNode))
 }
 
@@ -46,4 +40,12 @@ func (node *n48) insertChild(c byte, child unsafe.Pointer) {
 	atomic.StorePointer(&node.child[pos], child)
 	node.keys[c] = uint8(pos + 1)
 	node.numChild++
+}
+
+func (node *n48) copyData(newNode *n256) {
+	for i := 0; i < node48KeysSize; i++ {
+		if node.keys[i] != 0 {
+			newNode.child[i] = node.child[node.keys[i]-1]
+		}
+	}
 }

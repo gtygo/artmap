@@ -19,12 +19,6 @@ func makeN256() *n256 {
 	n.typ = typeN256
 	return n
 }
-
-//w opt
-func (node *n256) insertAndGrow(c byte, child unsafe.Pointer) {
-	node.insertChild(c, child)
-}
-
 //w opt
 func (node *n256) insertChild(c byte, child unsafe.Pointer) {
 	node.numChild++

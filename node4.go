@@ -25,8 +25,7 @@ func makeN4() *n4 {
 //w opt
 func (node *n4) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer) {
 	newNode := makeN16()
-	copy(newNode.child[:], node.child[:])
-	copy(newNode.keys[:], node.keys[:])
+	node.copyData(newNode)
 	copyHeader((*n)(unsafe.Pointer(newNode)), (*n)(unsafe.Pointer(node)))
 	newNode.insertChild(c, child)
 	atomic.StorePointer(ref, unsafe.Pointer(newNode))
@@ -47,11 +46,9 @@ func (node *n4) insertChild(c byte, child unsafe.Pointer) {
 	node.numChild++
 }
 
-//w opt
-func copyHeader(dst *n, src *n) {
-	dst.numChild = src.numChild
-	dst.prefixLen = src.prefixLen
-	copy(dst.prefix[:], src.prefix[:])
-	dst.prefixLeaf = src.prefixLeaf
-
+func (node *n4) copyData(newNode *n16) {
+	copy(newNode.child[:], node.child[:])
+	copy(newNode.keys[:], node.keys[:])
 }
+
+//w opt

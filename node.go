@@ -203,6 +203,33 @@ CUR:
 	goto CUR
 }
 
+func (cn *n) DeleteOpt(key []byte, depth int, pn *n, pv uint64, locator *unsafe.Pointer) bool {
+	/*
+			var (
+				cv    uint64
+				rFlag bool
+			)
+		CUR:
+			if cv, rFlag = readLockOrRestart(cn); !rFlag {
+				return false
+			}
+			if !readUnLockOrRestart(pn, pv) {
+				return false
+			}
+
+			if cn.checkPrefix(key, depth) != min(int(cn.prefixLen), maxPrefixLen) {
+				if !readUnLockOrRestart(cn, cv) {
+					return false
+				}
+				return true
+			}
+
+	*/
+
+	return false
+
+}
+
 func (cn *n) updatePrefixLeaf(key []byte, value interface{}) {
 	if cn.prefixLeaf == nil {
 		atomic.StorePointer(&cn.prefixLeaf, unsafe.Pointer(makeLeaf(key, value)))
@@ -249,10 +276,6 @@ func (cn *n) insertAndGrow(ref *unsafe.Pointer, c byte, child unsafe.Pointer) {
 	case typeN48:
 		{
 			((*n48)(unsafe.Pointer(cn))).insertAndGrow(ref, c, child)
-		}
-	case typeN256:
-		{
-			((*n256)(unsafe.Pointer(cn))).insertAndGrow(c, child)
 		}
 	}
 }

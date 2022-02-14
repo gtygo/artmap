@@ -81,10 +81,6 @@ func TestInsert16To48(t *testing.T) {
 
 	for i := 16; i >= 0; i-- {
 		k := fmt.Sprintf("%c", 'b'+i)
-		println(k)
-		if k == "r" {
-			print("this")
-		}
 		m.Set([]byte(k), k)
 		v, ok := m.Get([]byte(k))
 		assert.Equal(t, ok, true)
@@ -103,23 +99,24 @@ func TestInsert16To48(t *testing.T) {
 func TestInsert48To256(t *testing.T) {
 	m := New()
 
-	for i := 0; i < 49; i++ {
-		k := fmt.Sprintf("%c", 'a'+i)
-		println(k)
-		if k == "r" {
-			print("this")
+	for i := 0; i < 52; i++ {
+		if i==51{
+			print("a")
 		}
+		k := fmt.Sprintf("%c", '!'+i)
 		m.Set([]byte(k), k)
+		for j := 0; j < i; j++ {
+			kk := fmt.Sprintf("%c", '!'+j)
+			v, ok := m.Get([]byte(kk))
+			assert.Equal(t, ok, true)
+			assert.Equal(t, v, kk)
+		}
+
+	}
+	for i := 0; i < 52; i++ {
+		k := fmt.Sprintf("%c", '!'+i)
 		v, ok := m.Get([]byte(k))
 		assert.Equal(t, ok, true)
 		assert.Equal(t, v, k)
 	}
-	/*	assert.Equal(t, m.count, uint64(17))
-		m.Set([]byte("a"), "a")
-		for i := 0; i < 18; i++ {
-			k := fmt.Sprintf("%c", 'a'+i)
-			v, ok := m.Get([]byte(k))
-			assert.Equal(t, ok, true)
-			assert.Equal(t, v, k)
-		}*/
 }
