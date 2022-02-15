@@ -100,7 +100,7 @@ func TestInsert48To256(t *testing.T) {
 	m := New()
 
 	for i := 0; i < 52; i++ {
-		if i==51{
+		if i == 51 {
 			print("a")
 		}
 		k := fmt.Sprintf("%c", '!'+i)
@@ -120,3 +120,24 @@ func TestInsert48To256(t *testing.T) {
 		assert.Equal(t, v, k)
 	}
 }
+
+func TestInsertMultiKey(t *testing.T) {
+	m := New()
+	for i := 0; i < 100000; i++ {
+		k := fmt.Sprintf("%d", i)
+		m.Set([]byte(k), k)
+		v, ok := m.Get([]byte(k))
+		assert.Equal(t, ok, true)
+		assert.Equal(t, v, k)
+	}
+	for i := 0; i < 100000; i++ {
+		k := fmt.Sprintf("%d", i)
+		v, ok := m.Get([]byte(k))
+		assert.Equal(t, ok, true)
+		assert.Equal(t, v, k)
+	}
+
+	assert.Equal(t, m.count, uint64(100000))
+}
+
+

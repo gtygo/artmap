@@ -25,15 +25,21 @@ func readUnLockOrRestart(n *n, version uint64) bool {
 	if n == nil {
 		return true
 	}
-	return version == atomic.LoadUint64(&n.version)
+	if version != atomic.LoadUint64(&n.version) {
+		return false
+	}
+	return true
 }
 
 func readUnLockWithNodeOrRestart(n *n, version uint64, uln *n) bool {
 	if n == nil {
 		return true
 	}
-	writeUnLock(uln)
-	return version == atomic.LoadUint64(&n.version)
+	if version != atomic.LoadUint64(&n.version) {
+		writeUnLock(uln)
+		return false
+	}
+	return true
 }
 
 func upgradeToWriteLockOrRestart(n *n, version uint64) bool {
