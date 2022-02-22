@@ -26,9 +26,10 @@ func (l *leaf) compareKey(k []byte) bool {
 	return len(k) == len(l.key) && bytes.Compare(k, l.key) == 0
 }
 
-func (l *leaf) insertExpandLeaf(key []byte, value interface{}, depth int, loc *unsafe.Pointer) {
+func (l *leaf) insertExpandLeaf(key []byte, value interface{}, depth int, loc *unsafe.Pointer) int {
 	if l.compareKey(key) {
 		l.value = value
+		return 0
 	}
 
 	prefixLen := min(len(key), len(l.key))
@@ -54,5 +55,5 @@ func (l *leaf) insertExpandLeaf(key []byte, value interface{}, depth int, loc *u
 		newNode.insertChild(key[idx], unsafe.Pointer(makeLeaf(key, value)))
 	}
 	atomic.StorePointer(loc, unsafe.Pointer(newNode))
-
+	return 1
 }

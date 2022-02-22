@@ -107,31 +107,31 @@ CUR:
 	goto CUR
 }
 
-func (cn *n) InsertOpt(key []byte, value interface{}, depth int, pn *n, pv uint64, locator *unsafe.Pointer) bool {
+func (cn *n) InsertOpt(key []byte, value interface{}, depth int, pn *n, pv uint64, locator *unsafe.Pointer) (bool, int) {
 	var (
 		cv    uint64
 		rFlag bool
 	)
 CUR:
 	if cv, rFlag = readLockOrRestart(cn); !rFlag {
-		return false
+		return false, 0
 	}
 	prefixLen, comKey, ok := cn.prefixMismatch(key, depth, pn, cv, pv)
 	if !ok {
-		return false
+		return false, 0
 	}
 
 	if cn.prefixLen != uint32(prefixLen) {
 		if !upgradeToWriteLockOrRestart(pn, pv) {
-			return false
+			return false, 0
 		}
 		if !upgradeToWriteLockWithNodeOrRestart(cn, cv, pn) {
-			return false
+			return false, 0
 		}
 		cn.insertSplitPrefix(key, comKey, value, depth, prefixLen, locator)
 		writeUnLock(cn)
 		writeUnLock(pn)
-		return true
+		return true, 1
 	}
 
 	depth += int(cn.prefixLen)
@@ -139,15 +139,15 @@ CUR:
 	if depth == len(key) {
 		//lock current
 		if !upgradeToWriteLockOrRestart(cn, cv) {
-			return false
+			return false, 0
 		}
 		//release father
 		if !readUnLockWithNodeOrRestart(pn, pv, cn) {
-			return false
+			return false, 0
 		}
-		cn.updatePrefixLeaf(key, value)
+		iFlag := cn.updatePrefixLeaf(key, value)
 		writeUnLock(cn)
-		return true
+		return true, iFlag
 
 	}
 	loc := cn.findChild(key[depth])
@@ -159,10 +159,10 @@ CUR:
 	if nextNode == nil {
 		if cn.isFull() {
 			if !upgradeToWriteLockOrRestart(pn, pv) {
-				return false
+				return false, 0
 			}
 			if !upgradeToWriteLockWithNodeOrRestart(cn, cv, pn) {
-				return false
+				return false, 0
 			}
 			//Capacity Expansion
 			cn.insertAndGrow(locator, key[depth], unsafe.Pointer(makeLeaf(key, value)))
@@ -170,30 +170,30 @@ CUR:
 			writeUnLock(pn)
 		} else {
 			if !upgradeToWriteLockOrRestart(cn, cv) {
-				return false
+				return false, 0
 			}
 			if !readUnLockWithNodeOrRestart(pn, pv, cn) {
-				return false
+				return false, 0
 			}
 			cn.insert(key[depth], unsafe.Pointer(makeLeaf(key, value)))
-			writeUnLock(cn)
 
+			writeUnLock(cn)
 		}
-		return true
+		return true, 1
 	}
 	if pn != nil {
 		if !readUnLockOrRestart(pn, pv) {
-			return false
+			return false, 0
 		}
 	}
 
 	if ((*n)(nextNode)).typ == typeLeaf {
 		if !upgradeToWriteLockOrRestart(cn, cv) {
-			return false
+			return false, 0
 		}
-		(*leaf)(nextNode).insertExpandLeaf(key, value, depth+1, loc)
+		iFlag := (*leaf)(nextNode).insertExpandLeaf(key, value, depth+1, loc)
 		writeUnLock(cn)
-		return true
+		return true, iFlag
 	}
 	depth += 1
 	pn = cn
@@ -230,13 +230,14 @@ func (cn *n) DeleteOpt(key []byte, depth int, pn *n, pv uint64, locator *unsafe.
 
 }
 
-func (cn *n) updatePrefixLeaf(key []byte, value interface{}) {
+func (cn *n) updatePrefixLeaf(key []byte, value interface{}) int {
 	if cn.prefixLeaf == nil {
 		atomic.StorePointer(&cn.prefixLeaf, unsafe.Pointer(makeLeaf(key, value)))
-	} else {
-		l := (*leaf)(cn.prefixLeaf)
-		l.value = value
+		return 1
 	}
+	l := (*leaf)(cn.prefixLeaf)
+	l.value = value
+	return 0
 	//check leaf type
 }
 

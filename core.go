@@ -12,7 +12,6 @@ func copyHeader(dst *n, src *n) {
 	dst.prefixLeaf = src.prefixLeaf
 }
 
-
 func (cn *n) checkPrefix(key []byte, depth int) int {
 	if cn.prefixLen == 0 {
 		return 0
@@ -47,9 +46,9 @@ func (cn *n) prefixMismatch(key []byte, depth int, pn *n, cv uint64, pv uint64) 
 			return 0, nil, false
 		}
 	}
-	i := depth
-	minPrefixLen := min(len(key), depth+int(cn.prefixLen))
 
+	minPrefixLen := min(len(key), depth+int(cn.prefixLen))
+	i := depth
 	for ; i < minPrefixLen; i++ {
 		if key[i] != completeKey[i] {
 			break
@@ -65,19 +64,20 @@ func (cn *n) insertSplitPrefix(key, comKey []byte, value interface{}, depth int,
 	if len(key) == tmpDepth {
 		n4.prefixLeaf = unsafe.Pointer(makeLeaf(key, value))
 	} else {
-		n4.insertChild(key[depth], unsafe.Pointer(makeLeaf(key, value)))
+		n4.insertChild(key[tmpDepth], unsafe.Pointer(makeLeaf(key, value)))
 	}
 	n4.prefixLen = uint32(prefixLen)
-	copy(cn.prefix[:min(maxPrefixLen, prefixLen)], cn.prefix[:])
+	copy(n4.prefix[:min(maxPrefixLen, prefixLen)], cn.prefix[:])
 
 	if cn.prefixLen <= maxPrefixLen {
+		//expand
 		n4.insertChild(cn.prefix[prefixLen], unsafe.Pointer(cn))
-		cn.prefixLen -= uint32(prefixLen) + 1
+		cn.prefixLen -= (uint32(prefixLen) + 1)
 		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], cn.prefix[prefixLen+1:])
 
 	} else {
 		n4.insertChild(comKey[depth+prefixLen], unsafe.Pointer(cn))
-		cn.prefixLen -= uint32(prefixLen) + 1
+		cn.prefixLen -= (uint32(prefixLen) + 1)
 		copy(cn.prefix[:min(maxPrefixLen, int(cn.prefixLen))], comKey[depth+prefixLen+1:])
 
 	}
